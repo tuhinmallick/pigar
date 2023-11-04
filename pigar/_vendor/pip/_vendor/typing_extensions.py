@@ -166,9 +166,7 @@ else:
             return super().__instancecheck__(obj)
 
         def __repr__(self):
-            if self is Any:
-                return "typing_extensions.Any"
-            return super().__repr__()
+            return "typing_extensions.Any" if self is Any else super().__repr__()
 
     class Any(metaclass=_AnyMeta):
         """Special type indicating an unconstrained type.
@@ -196,7 +194,7 @@ else:
     class _FinalForm(typing._SpecialForm, _root=True):
 
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
         def __getitem__(self, parameters):
             item = typing._type_check(parameters,
@@ -268,7 +266,7 @@ else:
     class _LiteralForm(typing._SpecialForm, _root=True):
 
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
         def __getitem__(self, parameters):
             return typing._GenericAlias(self, parameters)
@@ -775,20 +773,18 @@ else:
             for annotation_key, annotation_type in own_annotations.items():
                 annotation_origin = get_origin(annotation_type)
                 if annotation_origin is Annotated:
-                    annotation_args = get_args(annotation_type)
-                    if annotation_args:
+                    if annotation_args := get_args(annotation_type):
                         annotation_type = annotation_args[0]
                         annotation_origin = get_origin(annotation_type)
 
-                if annotation_origin is Required:
-                    required_keys.add(annotation_key)
-                elif annotation_origin is NotRequired:
-                    optional_keys.add(annotation_key)
-                elif total:
+                if (
+                    annotation_origin is Required
+                    or annotation_origin is not NotRequired
+                    and total
+                ):
                     required_keys.add(annotation_key)
                 else:
                     optional_keys.add(annotation_key)
-
             tp_dict.__annotations__ = annotations
             tp_dict.__required_keys__ = frozenset(required_keys)
             tp_dict.__optional_keys__ = frozenset(optional_keys)
@@ -884,9 +880,7 @@ else:
             return _strip_extras(t.__args__[0])
         if isinstance(t, typing._GenericAlias):
             stripped_args = tuple(_strip_extras(a) for a in t.__args__)
-            if stripped_args == t.__args__:
-                return t
-            return t.copy_with(stripped_args)
+            return t if stripped_args == t.__args__ else t.copy_with(stripped_args)
         if hasattr(types, "GenericAlias") and isinstance(t, types.GenericAlias):
             stripped_args = tuple(_strip_extras(a) for a in t.__args__)
             if stripped_args == t.__args__:
@@ -1087,9 +1081,7 @@ else:
         if isinstance(tp, (typing._GenericAlias, _typing_GenericAlias, _BaseGenericAlias,
                            ParamSpecArgs, ParamSpecKwargs)):
             return tp.__origin__
-        if tp is typing.Generic:
-            return typing.Generic
-        return None
+        return typing.Generic if tp is typing.Generic else None
 
     def get_args(tp):
         """Get type arguments with all substitutions performed.
@@ -1121,7 +1113,7 @@ if hasattr(typing, 'TypeAlias'):
 elif sys.version_info[:2] >= (3, 9):
     class _TypeAliasForm(typing._SpecialForm, _root=True):
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
     @_TypeAliasForm
     def TypeAlias(self, parameters):
@@ -1140,7 +1132,7 @@ elif sys.version_info[:2] >= (3, 9):
 else:
     class _TypeAliasForm(typing._SpecialForm, _root=True):
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
     TypeAlias = _TypeAliasForm('TypeAlias',
                                doc="""Special marker indicating that an assignment should
@@ -1456,7 +1448,7 @@ elif sys.version_info[:2] >= (3, 9):
 else:
     class _ConcatenateForm(typing._SpecialForm, _root=True):
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
         def __getitem__(self, parameters):
             return _concatenate_getitem(self, parameters)
@@ -1481,7 +1473,7 @@ if hasattr(typing, 'TypeGuard'):
 elif sys.version_info[:2] >= (3, 9):
     class _TypeGuardForm(typing._SpecialForm, _root=True):
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
     @_TypeGuardForm
     def TypeGuard(self, parameters):
@@ -1534,7 +1526,7 @@ else:
     class _TypeGuardForm(typing._SpecialForm, _root=True):
 
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
         def __getitem__(self, parameters):
             item = typing._type_check(parameters,
@@ -1711,7 +1703,7 @@ if hasattr(typing, 'Required'):
 elif sys.version_info[:2] >= (3, 9):
     class _ExtensionsSpecialForm(typing._SpecialForm, _root=True):
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
     @_ExtensionsSpecialForm
     def Required(self, parameters):
@@ -1753,7 +1745,7 @@ elif sys.version_info[:2] >= (3, 9):
 else:
     class _RequiredForm(typing._SpecialForm, _root=True):
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
         def __getitem__(self, parameters):
             item = typing._type_check(parameters,
@@ -1798,7 +1790,7 @@ if hasattr(typing, "Unpack"):  # 3.11+
 elif sys.version_info[:2] >= (3, 9):
     class _UnpackSpecialForm(typing._SpecialForm, _root=True):
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
     class _UnpackAlias(typing._GenericAlias, _root=True):
         __class__ = typing.TypeVar
@@ -1827,7 +1819,7 @@ else:
 
     class _UnpackForm(typing._SpecialForm, _root=True):
         def __repr__(self):
-            return 'typing_extensions.' + self._name
+            return f'typing_extensions.{self._name}'
 
         def __getitem__(self, parameters):
             item = typing._type_check(parameters,
@@ -1946,7 +1938,7 @@ else:
         def __reduce__(self):
             return self.__name__
 
-        def __init_subclass__(self, *args, **kwds):
+        def __init_subclass__(cls, *args, **kwds):
             if '_root' not in kwds:
                 raise TypeError("Cannot subclass special typing classes")
 
@@ -2281,7 +2273,7 @@ else:
             # update from user namespace without overriding special namedtuple attributes
             for key in ns:
                 if key in _prohibited_namedtuple_fields:
-                    raise AttributeError("Cannot overwrite NamedTuple attribute " + key)
+                    raise AttributeError(f"Cannot overwrite NamedTuple attribute {key}")
                 elif key not in _special_namedtuple_fields and key not in nm_tpl._fields:
                     setattr(nm_tpl, key, ns[key])
             if typing.Generic in bases:

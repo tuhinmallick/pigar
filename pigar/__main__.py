@@ -38,10 +38,7 @@ class AliasedGroup(click.Group):
             return None
         elif len(matches) == 1:
             return click.Group.get_command(self, ctx, matches[0])
-        ctx.fail(
-            'Too commands has the same prefix: %s' %
-            ', '.join(sorted(matches))
-        )
+        ctx.fail(f"Too commands has the same prefix: {', '.join(sorted(matches))}")
 
 
 def _click_prompt_choose_multiple_or_all(choices):
@@ -224,10 +221,7 @@ def generate(
 
     def _dists_filter(import_name, locations, distributions, best_match):
         if auto_select:
-            if best_match:
-                return [best_match]
-            return distributions
-
+            return [best_match] if best_match else distributions
         dists_mapping = {dist.name: dist for dist in distributions}
         dist_names = list(dists_mapping.keys())
         msg = 'Please select one or more packages from the below list for the module '
@@ -236,7 +230,7 @@ def generate(
         dist_names_msg = ', '.join(dist_names)
         msg += Color.YELLOW(f'[{dist_names_msg}]\n')
         if best_match is not None:
-            msg += f'(the best match may be '
+            msg += '(the best match may be '
             msg += Color.YELLOW(f'"{best_match.name}"')
             msg += ')'
         choosed = click.prompt(
@@ -313,7 +307,7 @@ def generate(
 
     old_requirement_file_content = _read_requirement_file(requirement_file)
 
-    tmp_requirement_file = requirement_file + ".tmp"
+    tmp_requirement_file = f"{requirement_file}.tmp"
     try:
         with open(tmp_requirement_file, 'w+') as f:
             analyzer.write_requirements(
