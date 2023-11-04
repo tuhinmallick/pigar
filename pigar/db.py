@@ -111,11 +111,9 @@ class Database(object):
             cursor.execute('COMMIT')
             # conn.commit()
         except sqlite3.OperationalError:
-            try:
+            with contextlib.suppress(Exception):
                 # conn.rollback()
                 cursor.execute('ROLLBACK')
-            except Exception:
-                pass
             self._reconnect()
             raise
         finally:

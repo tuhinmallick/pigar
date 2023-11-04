@@ -525,7 +525,7 @@ async def search_distributions_by_top_level_import_names(
     include_prereleases=False,
 ) -> Tuple[Dict[str, List[Tuple[str, str, str]]], List[str]]:
     results = collections.defaultdict(list)
-    not_found = list()
+    not_found = []
 
     installed_dists = installed_distributions_by_top_level_import_names()
 
@@ -605,10 +605,7 @@ def sync_distributions_index_from_pypi(
 @contextlib.contextmanager
 def _exclude_sys_site_paths():
     origin_sys_path = sys.path.copy()
-    site_paths = []
-    for path in sys.path:
-        if is_site_packages_path(path):
-            site_paths.append(path)
+    site_paths = [path for path in sys.path if is_site_packages_path(path)]
     for path in site_paths:
         sys.path.remove(path)
     yield
@@ -649,13 +646,11 @@ def is_user_module(module: Module, project_root: str):
             with _prepend_sys_path(project_root):
                 with _keep_sys_modules_clean():
                     for name in [module.name, root_module_name]:
-                        try:
+                        with contextlib.suppress(Exception):
                             spec = importlib.util.find_spec(
                                 name, os.path.dirname(module.file)
                             )
                             break
-                        except Exception:
-                            pass
         if spec.origin is None:
             return False
         return (

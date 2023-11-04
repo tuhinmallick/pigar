@@ -65,12 +65,8 @@ class Archive(object):
             raise ValueError("unreadable: {0}".format(self._filename))
 
     def _safe_extractall(self, to_path='.'):
-        unsafe = []
-        for name in self.names:
-            if not self.is_safe(name):
-                unsafe.append(name)
-        if unsafe:
-            raise ValueError("unsafe to unpack: {}".format(unsafe))
+        if unsafe := [name for name in self.names if not self.is_safe(name)]:
+            raise ValueError(f"unsafe to unpack: {unsafe}")
         self._file.extractall(to_path)
 
     def _prepare_zip(self):
@@ -109,11 +105,14 @@ def parse_top_levels(file: InMemoryOrDiskFile) -> List[str]:
 
     with file as stream:
         with Archive(file.name, stream) as archive:
-            top_level_file = None
-            for name in archive.names:
-                if os.path.basename(name.lower()) == 'top_level.txt':
-                    top_level_file = name
-                    break
+            top_level_file = next(
+                (
+                    name
+                    for name in archive.names
+                    if os.path.basename(name.lower()) == 'top_level.txt'
+                ),
+                None,
+            )
             if top_level_file is None:
                 return []
 

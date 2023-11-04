@@ -32,11 +32,7 @@ class Annotation(NamedTuple):
 def _match_exclude_patterns(
     name: str, patterns: Iterable[str], root: str = ""
 ) -> bool:
-    # name = trim_prefix(trim_prefix(name, root), "/")
-    for pattern in patterns:
-        if fnmatch.fnmatch(name, pattern):
-            return True
-    return False
+    return any(fnmatch.fnmatch(name, pattern) for pattern in patterns)
 
 
 DEFAULT_GLOB_EXCLUDE_PATTERNS = (
@@ -57,8 +53,11 @@ def parse_imports(
 ) -> Tuple[List[Module], List[Annotation]]:
     """package_root must be a absolute path to package root,
     e.g. /path/to/pigar/pigar."""
-    exclude_pattern_set = set(trim_prefix(p, './') for p in exclude_patterns
-                              ) if exclude_patterns else set()
+    exclude_pattern_set = (
+        {trim_prefix(p, './') for p in exclude_patterns}
+        if exclude_patterns
+        else set()
+    )
     exclude_pattern_set |= set(DEFAULT_GLOB_EXCLUDE_PATTERNS)
 
     imported_modules: List[Module] = []
@@ -81,8 +80,7 @@ def parse_imports(
                 continue
             logger.debug('analyzing file: %s', fpath)
 
-            code = _read_code(fpath)
-            if code:
+            if code := _read_code(fpath):
                 imported_modules.extend(
                     parse_file_imports(
                         fpath, code, visit_doc_str=visit_doc_str
@@ -120,25 +118,25 @@ def parse_file_comment_annotations(fpath: str,
                 continue
             # No empty space allowed in parts.
             if parts[0] in ("required-packages", "required-distributions"):
-                for name in parts[1].split(","):
-                    annotations.append(
-                        Annotation(
-                            distribution_name=name,
-                            top_level_import_name=None,
-                            file=fpath,
-                            lineno=lineno
-                        )
+                annotations.extend(
+                    Annotation(
+                        distribution_name=name,
+                        top_level_import_name=None,
+                        file=fpath,
+                        lineno=lineno,
                     )
+                    for name in parts[1].split(",")
+                )
             elif parts[0] == "required-imports":
-                for name in parts[1].split(","):
-                    annotations.append(
-                        Annotation(
-                            distribution_name=None,
-                            top_level_import_name=name,
-                            file=fpath,
-                            lineno=lineno
-                        )
+                annotations.extend(
+                    Annotation(
+                        distribution_name=None,
+                        top_level_import_name=name,
+                        file=fpath,
+                        lineno=lineno,
                     )
+                    for name in parts[1].split(",")
+                )
     except Exception as e:
         logger.error("parse %s failed: %r", fpath, e)
     return annotations
@@ -244,7 +242,7 @@ class ImportsParser(object):
         mod_name = ""
         for alias in node.names:
             name = mod_name
-            if level > 0 or mod_name == "":
+            if level > 0 or not mod_name:
                 name = level*"." + mod_name + "." + alias.name
             lineno = node.lineno + self._lineno
             self._add_module(name, try_, lineno)
@@ -256,12 +254,12 @@ class ImportsParser(object):
         """
         for ipt in node.body:
             if ipt.__class__.__name__.startswith('Import'):
-                method = 'visit_' + ipt.__class__.__name__
+                method = f'visit_{ipt.__class__.__name__}'
                 getattr(self, method)(ipt, True)
         for handler in node.handlers:
             for ipt in handler.body:
                 if ipt.__class__.__name__.startswith('Import'):
-                    method = 'visit_' + ipt.__class__.__name__
+                    method = f'visit_{ipt.__class__.__name__}'
                     getattr(self, method)(ipt, True)
 
     # For Python 3.3+
@@ -336,8 +334,7 @@ class ImportsParser(object):
         if not self._doc_str_enabled:
             return
 
-        docstring = self._parse_docstring(node)
-        if docstring:
+        if docstring := self._parse_docstring(node):
             self._add_rawcode(docstring, node.lineno + self._lineno + 2)
 
     def visit_ClassDef(self, node: ast.ClassDef):
@@ -347,14 +344,13 @@ class ImportsParser(object):
         if not self._doc_str_enabled:
             return
 
-        docstring = self._parse_docstring(node)
-        if docstring:
+        if docstring := self._parse_docstring(node):
             self._add_rawcode(docstring, node.lineno + self._lineno + 2)
 
     def visit(self, node: ast.AST):
         """Visit a node, no recursively."""
         for node in ast.walk(node):
-            method = 'visit_' + node.__class__.__name__
+            method = f'visit_{node.__class__.__name__}'
             getattr(self, method, lambda x: x)(node)
 
     @staticmethod
@@ -363,8 +359,7 @@ class ImportsParser(object):
                     ast.Module]
     ) -> Optional[bytes]:
         """Extract code from docstring."""
-        docstring = ast.get_docstring(node)
-        if docstring:
+        if docstring := ast.get_docstring(node):
             parser = doctest.DocTestParser()
             try:
                 dt = parser.get_doctest(docstring, {}, "", None, None)

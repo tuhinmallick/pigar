@@ -33,9 +33,9 @@ DEFAULT_PYPI_INDEX_URL = 'https://pypi.org/simple/'
 # TODO: use custom configuration rather than hard-code mapping.
 # Special distributions top level import name: Distribution name -> import names.
 _hardcode_distributions_with_import_names = {
-    "dogpile-cache": set(["dogpile.cache"]),
-    "dogpile-core": set(["dogpile.core"]),
-    "ruamel-yaml": set(["ruamel.yaml"]),
+    "dogpile-cache": {"dogpile.cache"},
+    "dogpile-core": {"dogpile.core"},
+    "ruamel-yaml": {"ruamel.yaml"},
 }
 
 
@@ -175,10 +175,10 @@ class FrozenRequirement(object):
     def contains_file(self, file):
         if not self.code_paths or not file:
             return False
-        for code_path in self.code_paths:
-            if is_commonpath([code_path, file], code_path):
-                return True
-        return False
+        return any(
+            is_commonpath([code_path, file], code_path)
+            for code_path in self.code_paths
+        )
 
     def as_requirement(
         self, operator: str = '==', spaces_around_operator: str = ''
@@ -223,7 +223,7 @@ def installed_distributions() -> Mapping[NormalizedName, FrozenRequirement]:
 
 
 def _format_dist_as_name_version(dist: Distribution):
-    return "{}=={}".format(dist.name, dist.version)
+    return f"{dist.name}=={dist.version}"
 
 
 class _EditableInfo(NamedTuple):
@@ -319,6 +319,9 @@ class _URLElement(object):
 
 def _parse_urls_from_html(html, base_url, put):
 
+
+
+
     class _HrefParser(HTMLParser):
 
         def __init__(self):
@@ -333,8 +336,7 @@ def _parse_urls_from_html(html, base_url, put):
             attrs = dict(attrs)
             href = attrs.get('href', None)
             if href is not None:
-                url = urljoin(base_url, href)
-                if url:
+                if url := urljoin(base_url, href):
                     self._url_element = _URLElement(url=url)
 
         def handle_data(self, data):
@@ -348,6 +350,7 @@ def _parse_urls_from_html(html, base_url, put):
                     )[-1]
                 put(self._url_element)
                 self._url_element = None
+
 
     _HrefParser().feed(html)
 
@@ -387,7 +390,7 @@ class PyPIDistributions(object):
         self, name, url=None, include_prereleases=False
     ):
         if url is None:
-            url = urljoin(self._index_url, quote(name) + '/')
+            url = urljoin(self._index_url, f'{quote(name)}/')
         html = await self._download_text(url)
         download_urls = []
         _parse_urls_from_html(
@@ -432,7 +435,7 @@ class PyPIDistributions(object):
             if not include_prereleases and version.is_prerelease:
                 continue
             versions.append((version, path, url))
-        if len(versions) == 0:
+        if not versions:
             return None, None
 
         def _cmp_version(x, y):
@@ -442,9 +445,7 @@ class PyPIDistributions(object):
                 return 1
             if x[1].endswith('.whl'):
                 return 1
-            if y[1].endswith('.whl'):
-                return -1
-            return 0
+            return -1 if y[1].endswith('.whl') else 0
 
         versions.sort(key=cmp_to_key(_cmp_version), reverse=True)
 
@@ -668,8 +669,9 @@ class PyPIDistributionsIndexSynchronizer(object):
             top_levels, project_name
         )
 
-        x_import_names = _get_hardcode_distributions_import_names(project_name)
-        if x_import_names:
+        if x_import_names := _get_hardcode_distributions_import_names(
+            project_name
+        ):
             top_levels.extend(list(x_import_names))
         logger.debug(
             'distribution %s parsed top levels: %r', project_name, top_levels

@@ -114,9 +114,7 @@ class ParsedRequirementParts(object):
 
     @property
     def name(self):
-        if self.requirement is not None:
-            return self.requirement.name
-        return self.url
+        return self.requirement.name if self.requirement is not None else self.url
 
     @property
     def specifier(self):
@@ -139,8 +137,7 @@ def parse_requirements(fpath) -> Generator[ParsedRequirementParts, None, None]:
         line = line.strip()
         if line == '' or line.startswith('#'):
             continue
-        match = PIP_INSTALL_OPTIONS_RE.match(line)
-        if match:
+        if match := PIP_INSTALL_OPTIONS_RE.match(line):
             groups = match.groupdict()
             if groups['opt'] in ('-r', '--requirement'):
                 req_path = groups['value']
@@ -163,7 +160,7 @@ def parse_requirements(fpath) -> Generator[ParsedRequirementParts, None, None]:
             # Ignore all other options..
             continue
 
-        line_source = "line {} of {}".format(lineno, fpath)
+        line_source = f"line {lineno} of {fpath}"
         try:
             req = parse_req_from_line(line, line_source)
             yield ParsedRequirementParts(
@@ -180,8 +177,7 @@ def parse_requirements(fpath) -> Generator[ParsedRequirementParts, None, None]:
             )
 
     for rfile in referenced_files:
-        for req in parse_requirements(rfile):
-            yield req
+        yield from parse_requirements(rfile)
 
 
 def cmp_to_key(cmp_func):
@@ -211,15 +207,13 @@ def compare_version(version1, version2):
     v2 = Version(version2)
     if v1 < v2:
         return -1
-    if v1 > v2:
-        return 1
-    return 0
+    return 1 if v1 > v2 else 0
 
 
 def lines_diff(lines1, lines2):
     """Show difference between lines."""
     is_diff = False
-    diffs = list()
+    diffs = []
 
     for line in difflib.ndiff(lines1, lines2):
         if not is_diff and line[0] in ('+', '-'):
@@ -230,15 +224,11 @@ def lines_diff(lines1, lines2):
 
 
 def trim_prefix(content, prefix):
-    if content.startswith(prefix):
-        return content[len(prefix):]
-    return content
+    return content[len(prefix):] if content.startswith(prefix) else content
 
 
 def trim_suffix(content, suffix):
-    if content.endswith(suffix):
-        return content[:-len(suffix)]
-    return content
+    return content[:-len(suffix)] if content.endswith(suffix) else content
 
 
 class InMemoryOrDiskFile(object):
@@ -286,12 +276,14 @@ class InMemoryOrDiskFile(object):
 
 def determine_python_sys_lib_paths() -> List[str]:
     pythonmmv_zip = f'python{sys.version_info.major}{sys.version_info.minor}.zip'
-    # Ref: https://docs.python.org/3/library/sys_path_init.html
-    py_sys_path_prefix = ''
-    for path in sys.path:
-        if os.path.basename(path) == pythonmmv_zip:
-            py_sys_path_prefix = os.path.dirname(path)
-            break
+    py_sys_path_prefix = next(
+        (
+            os.path.dirname(path)
+            for path in sys.path
+            if os.path.basename(path) == pythonmmv_zip
+        ),
+        '',
+    )
     if py_sys_path_prefix == '':
         raise RuntimeError('python sys path prefix not found')
 
